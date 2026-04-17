@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /rooms/{roomId} {
+      allow read: if true;
+
+      // Create room — max 4 users, content size limit
+      allow create: if request.resource.data.users.size() <= 4;
+
+      // Update room — max 4 users
+      allow update: if request.resource.data.users.size() <= 4;
+
+      allow delete: if false;
+
+      // Files — limit content to 900KB to stay under 1MB doc limit
+      match /files/{fileId} {
+        allow read: if true;
+        allow create, update: if request.resource.data.content.size() < 900000;
+        allow delete: if true;
+      }
+
+      // Assets — limit to 600KB per asset (base64 encoded)
+      match /assets/{assetId} {
+        allow read: if true;
+        allow create: if request.resource.data.base64.size() < 600000;
+        allow update: if false;
+        allow delete: if true;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
