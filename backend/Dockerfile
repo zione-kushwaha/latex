@@ -28,6 +28,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 COPY --from=builder /app/target/release/server ./server
 
+# Pre-download tectonic TeX bundle so first compile doesn't timeout
+RUN echo '\\documentclass{article}\\begin{document}hello\\end{document}' > /tmp/test.tex \
+    && tectonic /tmp/test.tex --outdir /tmp \
+    && rm -f /tmp/test.tex /tmp/test.pdf
+
 ENV RUST_LOG=info
 EXPOSE 3001
 CMD ["./server"]
