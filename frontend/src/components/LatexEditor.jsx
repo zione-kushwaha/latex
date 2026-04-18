@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { EditorView, keymap, Decoration, ViewPlugin } from '@codemirror/view'
+import { EditorView, keymap, Decoration, ViewPlugin, WidgetType } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { latex } from 'codemirror-lang-latex'
@@ -91,7 +91,7 @@ function buildCursorDecorations(users, currentUserId, docLength) {
   return builder.finish()
 }
 
-class CursorWidget {
+class CursorWidget extends WidgetType {
   constructor(name, color) { this.name = name; this.color = color }
   toDOM() {
     const el = document.createElement('span')
