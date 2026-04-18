@@ -44,6 +44,7 @@ async fn compile_handler(Json(body): Json<CompileRequest>) -> impl IntoResponse 
             Json(CompileResponse::Err { error: "LaTeX content is empty.".into() }),
         );
     }
+
     info!("Compiling LaTeX ({} bytes, {} assets)", latex.len(), body.assets.len());
 
     let result = tokio::task::spawn_blocking(move || {
@@ -305,9 +306,10 @@ async fn main() {
         .route("/compile", post(compile_handler))
         .layer(cors);
 
-    let addr = "0.0.0.0:3001";
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3001".to_string());
+    let addr = format!("0.0.0.0:{}", port);
     info!("TexLiteCollab backend listening on http://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }

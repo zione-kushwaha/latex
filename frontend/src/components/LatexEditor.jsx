@@ -3,8 +3,33 @@ import { EditorView, keymap, Decoration, ViewPlugin, WidgetType } from '@codemir
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { latex } from 'codemirror-lang-latex'
-import { EditorState, RangeSetBuilder } from '@codemirror/state'
+import { EditorState, RangeSetBuilder, StateField, StateEffect } from '@codemirror/state'
 import SnippetPalette from './SnippetPalette'
+
+// ── Error line highlighting ───────────────────────────────────────────────
+
+const setErrorLines = StateEffect.define()
+
+const errorLineField = StateField.define({
+  create: () => Decoration.none,
+  update(decos, tr) {
+    decos = decos.map(tr.changes)
+    for (const e of tr.effects) {
+      if (e.is(setErrorLines)) {
+        const builder = new RangeSetBuilder()
+        const lines = e.value
+        for (const lineNo of lines) {
+          if (lineNo < 1 || lineNo > tr.state.doc.lines) continue
+          const line = tr.state.doc.line(lineNo)
+          builder.add(line.from, line.from, Decoration.line({ class: 'cm-error-line' }))
+        }
+        decos = builder.finish()
+      }
+    }
+    return decos
+  },
+  provide: (f) => EditorView.decorations.from(f),
+})
 
 // ── Snippet helpers ────────────────────────────────────────────────────────
 
@@ -240,7 +265,7 @@ function FormatBar({ viewRef, onOpenSnippets }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export default function LatexEditor({ content, users, currentUser, onChange, onCursorChange, onInsertRef, onJumpRef, fontSize = 14 }) {
+export default function LatexEditor({ content, users, currentUser, onChange, onCursorChange, onInsertRef, onJumpRef, fontSize = 14, errorLines = [] }) {
   const containerRef   = useRef(null)
   const viewRef        = useRef(null)
   const onChangeRef    = useRef(onChange)
@@ -314,6 +339,7 @@ export default function LatexEditor({ content, users, currentUser, onChange, onC
           oneDark,
           EditorView.lineWrapping,
           autoCloseBegin,
+          errorLineField,
           remoteCursors,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString())
@@ -327,6 +353,10 @@ export default function LatexEditor({ content, users, currentUser, onChange, onC
           EditorView.theme({
             '&': { height: '100%', fontSize: `${fontSize}px` },
             '.cm-scroller': { overflow: 'auto', fontFamily: "'JetBrains Mono', 'Fira Code', monospace" },
+            '.cm-error-line': {
+              background: 'rgba(239,68,68,0.15) !important',
+              borderLeft: '3px solid #ef4444',
+            },
           }),
         ],
       }),
@@ -348,6 +378,13 @@ export default function LatexEditor({ content, users, currentUser, onChange, onC
   }, [content])
 
   useEffect(() => { viewRef.current?.dispatch({}) }, [users])
+
+  // Apply error line highlights
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({ effects: setErrorLines.of(errorLines) })
+  }, [errorLines])
 
   useEffect(() => {
     const view = viewRef.current

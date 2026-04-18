@@ -19,21 +19,17 @@ function buildLineMap(files) {
   const map = []
   const main = files['main']
   if (!main?.content) return map
-
   const processContent = (content, fileId) => {
     const lines = content.split('\n')
     for (let i = 0; i < lines.length; i++) {
       const inputMatch = lines[i].match(/^\\input\{([^}]+)\}/)
       if (inputMatch) {
-        const path  = inputMatch[1]
-        const fid   = path.replace(/\.tex$/, '').replace(/\//g, '__')
-        const child = files[fid]
-        if (child?.content) { processContent(child.content, fid); continue }
+        const fid = inputMatch[1].replace(/\.tex$/, '').replace(/\//g, '__')
+        if (files[fid]?.content) { processContent(files[fid].content, fid); continue }
       }
       map.push({ fileId, localLine: i + 1 })
     }
   }
-
   processContent(main.content, 'main')
   return map
 }
@@ -60,16 +56,6 @@ export default function RoomPage() {
   const { pdfUrl, compileError, compiling, elapsed, statusMsg, compile } = useCompile()
   const [autoCompile, setAutoCompile] = useState(false)
   const [sidebarTab, setSidebarTab]   = useState('files')
-
-  // Jump to a specific file+line from the outline
-  const handleOutlineJump = useCallback((line, fileId) => {
-    if (fileId !== activeFileId) {
-      switchFile(fileId)
-      setTimeout(() => jumpToLineRef.current?.(line), 80)
-    } else {
-      jumpToLineRef.current?.(line)
-    }
-  }, [activeFileId, switchFile])
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [assets, setAssets]           = useState([])
   const [fontSize, setFontSize]       = useState(14)
@@ -77,10 +63,8 @@ export default function RoomPage() {
   const insertTextRef = useRef(null)
   const jumpToLineRef = useRef(null)
 
-  // Expose content for StatusBar word count
   useEffect(() => { window.__tlc_content__ = content }, [content])
 
-  // Ctrl+S → push current file when in local mode
   useEffect(() => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -92,7 +76,6 @@ export default function RoomPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [localMode, pushFile, activeFileId])
 
-  // Warn before closing tab when there are unpushed local changes
   useEffect(() => {
     const handler = (e) => {
       if (dirtyFiles.size > 0) { e.preventDefault(); e.returnValue = '' }
@@ -111,6 +94,50 @@ export default function RoomPage() {
 
   const filesReady = Boolean(files['main']?.content)
 
+  // If main.tex is broken (no \documentclass), reset it to default
+  useEffect(() => {
+    if (!filesReady) return
+    const main = files['main']
+    if (main && !main.content.includes('\\documentclass')) {
+      const defaultContent = [
+        '\\documentclass[12pt,a4paper]{article}',
+        '\\usepackage{amsmath,amssymb}',
+        '\\usepackage{geometry}',
+        '\\usepackage{graphicx}',
+        '\\usepackage{xcolor}',
+        '\\usepackage{booktabs,float,caption}',
+        '\\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}',
+        '\\geometry{margin=1in}',
+        '',
+        '\\title{My Document}',
+        '\\author{TexLiteCollab}',
+        '\\date{\\today}',
+        '',
+        '\\begin{document}',
+        '\\maketitle',
+        '',
+        '\\section{Introduction}',
+        'Write your introduction here.',
+        '',
+        '\\section{Methods}',
+        'Describe your methods here.',
+        '',
+        '\\begin{equation}',
+        '  E = mc^2',
+        '\\end{equation}',
+        '',
+        '\\section{Conclusion}',
+        'Write your conclusion here.',
+        '',
+        '\\end{document}',
+      ].join('\n')
+      import('../lib/room').then(({ updateFileContent }) => {
+        updateFileContent(roomId, 'main', defaultContent)
+      })
+    }
+  }, [filesReady, files, roomId])
+
+  // Auto-compile
   useEffect(() => {
     if (!autoCompile || !filesReady) return
     const full = mergeDocument(files)
@@ -120,11 +147,13 @@ export default function RoomPage() {
     return () => clearTimeout(autoTimer.current)
   }, [files, autoCompile, filesReady, compile])
 
+  // Manual compile — always uses merged main.tex
   const handleCompile = useCallback(() => {
     const full = mergeDocument(files)
     if (full) compile(full, assetsRef.current)
   }, [files, compile])
 
+  // Ctrl+Enter shortcut
   useEffect(() => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); handleCompile() }
@@ -133,7 +162,21 @@ export default function RoomPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [handleCompile])
 
+  // Parse error line numbers from compile error
+  const errorLines = compileError
+    ? [...compileError.matchAll(/input\.tex:(\d+):/g)].map((m) => Number(m[1]))
+    : []
+
   const handleInsertAsset = useCallback((text) => { insertTextRef.current?.(text) }, [])
+
+  const handleOutlineJump = useCallback((line, fileId) => {
+    if (fileId !== activeFileId) {
+      switchFile(fileId)
+      setTimeout(() => jumpToLineRef.current?.(line), 80)
+    } else {
+      jumpToLineRef.current?.(line)
+    }
+  }, [activeFileId, switchFile])
 
   const handleJumpToLine = useCallback((mergedLineNo) => {
     const map   = buildLineMap(files)
@@ -198,7 +241,6 @@ export default function RoomPage() {
         sidebarOpen={sidebarOpen}
       />
 
-      {/* Local mode banner */}
       {localMode && (
         <div className="local-mode-banner">
           <span className="local-mode-banner-icon">⬡</span>
@@ -278,6 +320,7 @@ export default function RoomPage() {
                     onInsertRef={insertTextRef}
                     onJumpRef={jumpToLineRef}
                     fontSize={fontSize}
+                    errorLines={errorLines}
                   />
                 </div>
                 <StatusBar
