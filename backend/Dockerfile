@@ -24,8 +24,8 @@ RUN apt-get update && apt-get install -y \
     libharfbuzz0b libicu72 zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
-# Install tectonic from the official release
-RUN curl -fsSL https://drop.crates.io/tectonic/0.15.0/tectonic-0.15.0-x86_64-unknown-linux-gnu.tar.gz \
+# Install tectonic from GitHub releases
+RUN curl -fsSL https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.15.0/tectonic-0.15.0-x86_64-unknown-linux-gnu.tar.gz \
     | tar -xz -C /usr/local/bin \
     && chmod +x /usr/local/bin/tectonic
 
