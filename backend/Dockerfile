@@ -1,5 +1,5 @@
 # ── Stage 1: Build Rust binary ────────────────────────────────────────────────
-FROM rust:1.78-slim AS builder
+FROM rust:1.82-slim AS builder
 
 RUN apt-get update && apt-get install -y \
     pkg-config libssl-dev libfontconfig1-dev \
